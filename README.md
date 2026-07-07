@@ -1,8 +1,8 @@
 # AI Co-Editor
 
-[![Downloads](https://img.shields.io/github/downloads/kebl3541/AI-Co-Editor/total?style=flat&logo=github&label=Downloads&color=success)](https://github.com/kebl3541/AI-Co-Editor/releases)
-[![GitHub stars](https://img.shields.io/github/stars/kebl3541/AI-Co-Editor?style=flat&logo=github&label=Stars)](https://github.com/kebl3541/AI-Co-Editor/stargazers)
-[![Latest release](https://img.shields.io/github/v/release/kebl3541/AI-Co-Editor?style=flat&label=Release)](https://github.com/kebl3541/AI-Co-Editor/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/kebl3541/Obsidian-AI-Co-Editor/total?style=flat&logo=github&label=Downloads&color=success)](https://github.com/kebl3541/Obsidian-AI-Co-Editor/releases)
+[![GitHub stars](https://img.shields.io/github/stars/kebl3541/Obsidian-AI-Co-Editor?style=flat&logo=github&label=Stars)](https://github.com/kebl3541/Obsidian-AI-Co-Editor/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/kebl3541/Obsidian-AI-Co-Editor?style=flat&label=Release)](https://github.com/kebl3541/Obsidian-AI-Co-Editor/releases/latest)
 
 <p align="center">If this plugin adds value for you and you would like to help support
 continued development, please use the buttons below:</p>
@@ -13,7 +13,7 @@ continued development, please use the buttons below:</p>
 <a href="https://buymeacoffee.com/philosophizer"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="52"></a>
 </p>
 
-<p align="center">…and if this plugin makes your day a little easier, please give it a ⭐ on <a href="https://github.com/kebl3541/AI-Co-Editor">GitHub</a>, it helps others find it!</p>
+<p align="center">…and if this plugin makes your day a little easier, please give it a ⭐ on <a href="https://github.com/kebl3541/Obsidian-AI-Co-Editor">GitHub</a>, it helps others find it!</p>
 
 
 Co-edit the **same open note simultaneously with an AI** (Claude Code and other
