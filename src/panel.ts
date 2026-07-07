@@ -217,17 +217,23 @@ export class CoEditPanelView extends ItemView {
     parent: HTMLElement,
     msgs: Awaited<ReturnType<LiveCoEditPlugin["chatMessages"]>>
   ) {
-    const s = this.section(parent, "message-square", "Chat", msgs.length);
-
-    const tools = s.createDiv({ cls: "live-coedit-chattools" });
-    const clear = tools.createEl("button", {
-      text: "Clear",
-      cls: "live-coedit-smallbtn",
-      attr: { "aria-label": "Clear chat history" },
-    });
-    clear.addEventListener("click", () => {
-      void this.plugin.clearChat();
-    });
+    const s = this.section(
+      parent,
+      "message-square",
+      "Chat",
+      msgs.length,
+      (head) => {
+        const clear = head.createEl("button", {
+          text: "Clear",
+          cls: "live-coedit-headbtn",
+          attr: { "aria-label": "Clear chat history" },
+        });
+        clear.addEventListener("click", (e) => {
+          e.stopPropagation(); // don't toggle the section fold
+          void this.plugin.clearChat();
+        });
+      }
+    );
 
     const log = s.createDiv({ cls: "live-coedit-chatlog" });
     for (const m of msgs) {
@@ -269,7 +275,8 @@ export class CoEditPanelView extends ItemView {
     parent: HTMLElement,
     icon: string,
     title: string,
-    count: number
+    count: number,
+    decorateHead?: (head: HTMLElement) => void
   ): HTMLElement {
     const settings = this.plugin.settings;
     const collapsed = settings.collapsedSections.includes(title);
@@ -284,6 +291,7 @@ export class CoEditPanelView extends ItemView {
     setIcon(ic, icon);
     head.createSpan({ text: title });
     head.createSpan({ cls: "live-coedit-count", text: String(count) });
+    decorateHead?.(head);
 
     const body = box.createDiv({ cls: "live-coedit-section-body" });
     if (collapsed) body.hide();
