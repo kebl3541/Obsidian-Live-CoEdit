@@ -43,10 +43,12 @@ class AddWidget extends WidgetType {
   toDOM(): HTMLElement {
     const span = document.createElement("span");
     span.className = "live-coedit-ghost";
-    const txt = document.createElement("span");
-    txt.className = "live-coedit-ghost-text";
-    txt.textContent = this.text;
-    span.appendChild(txt);
+    if (this.text.length > 0) {
+      const txt = document.createElement("span");
+      txt.className = "live-coedit-ghost-text";
+      txt.textContent = this.text;
+      span.appendChild(txt);
+    }
 
     const mk = (label: string, cls: string, accept: boolean) => {
       const b = document.createElement("button");
@@ -93,14 +95,12 @@ export const inlineProposalsField = StateField.define<DecorationSet>({
           if (d.to > d.from) ranges.push(delMark(d.proposalIndex).range(d.from, d.to));
         }
         for (const a of spec.adds) {
-          if (a.text.length > 0) {
-            ranges.push(
-              Decoration.widget({
-                widget: new AddWidget(a.text, a.proposalIndex, spec.onResolve),
-                side: 1,
-              }).range(a.pos)
-            );
-          }
+          ranges.push(
+            Decoration.widget({
+              widget: new AddWidget(a.text, a.proposalIndex, spec.onResolve),
+              side: 1,
+            }).range(a.pos)
+          );
         }
         ranges.sort((x, y) => x.from - y.from || x.to - y.to);
         deco = Decoration.set(ranges, true);

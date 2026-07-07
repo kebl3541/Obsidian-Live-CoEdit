@@ -1276,15 +1276,23 @@ export default class LiveCoEditPlugin extends Plugin {
       const mineText = seg.mine.join("\n");
       const theirsText = seg.theirs.join("\n");
       let off = bufferOffset;
+      let hasAdd = false;
+      let lastDelEnd = bufferOffset;
       for (const tok of diffWords(mineText, theirsText)) {
         if (tok.kind === "same") {
           off += tok.text.length;
         } else if (tok.kind === "del") {
           dels.push({ from: off, to: off + tok.text.length, proposalIndex: idx });
           off += tok.text.length;
+          lastDelEnd = off;
         } else {
           adds.push({ pos: off, text: tok.text, proposalIndex: idx });
+          hasAdd = true;
         }
+      }
+      // Deletion-only proposals still need their accept and reject buttons.
+      if (!hasAdd) {
+        adds.push({ pos: lastDelEnd, text: "", proposalIndex: idx });
       }
       bufferOffset += mineText.length + 1;
       idx++;
