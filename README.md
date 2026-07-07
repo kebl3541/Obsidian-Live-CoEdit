@@ -16,53 +16,70 @@ continued development, please use the buttons below:</p>
 <p align="center">…and if this plugin makes your day a little easier, please give it a ⭐ on <a href="https://github.com/kebl3541/Obsidian-AI-Co-Editor">GitHub</a>, it helps others find it!</p>
 
 
-Co-edit the **same open note simultaneously with an AI** (Claude Code and other
-file-editing assistants). It proposes, you review as track changes, and
-nobody's words get lost. Works with scripts and other external editors too.
+Write **with** an AI inside Obsidian, on your terms. The AI proposes edits to
+your open note; you see them as tracked changes, in the note itself, and
+accept or refuse them word by word. Nothing enters your text without your
+judgment.
 
-## The problem it solves
+## How it works
 
-Obsidian autosaves your typing every couple of seconds. If something else
-writes to the same file on disk at the same time, one side normally wins and
-the other side's edit disappears.
+This plugin is the review layer, not the AI. It watches your vault, and when
+a connected AI edits a note it turns that edit into a proposal: struck
+deletions and green insertions rendered inside the note, each with accept and
+reject buttons, plus a side panel with a chat for giving directions. The AI
+itself plugs in separately, and takes about five minutes to connect.
 
-Live Co-Edit keeps a shadow copy of every open markdown file. When the file
-changes on disk while you're editing it, the plugin **three-way merges** the
-external change into your editor:
+## Quick start
 
-- Edits to **different parts** of the note merge silently, and your cursor stays
-  exactly where it was.
-- Edits to the **same lines** keep **your** version, and a notice tells you a
-  conflict was resolved.
-- When you're idle, external changes just flow in.
+1. Install and enable the plugin.
+2. Connect Claude: get an API key at console.anthropic.com, then in a
+   terminal run
 
-## Using it with an AI assistant
+   ```bash
+   export ANTHROPIC_API_KEY=sk-ant-...
+   python3 integrations/claude-bridge.py "/path/to/YourVault"
+   ```
 
-1. Open a note in Obsidian.
-2. Ask your assistant (e.g. Claude Code pointed at your vault) to edit the
-   same file.
-3. Watch its changes appear in your editor while you keep typing.
+   The bridge is a single Python file from this repo, no installs needed.
+   Leave it running while you write.
+3. In Obsidian, open the co-edit panel (the users icon on any note, or the
+   status bar item), type an instruction in the chat, and press Send. The
+   reply and any proposed edits arrive in seconds.
+4. Select any passage in a note and choose "Ask your AI collaborator to edit
+   this" to request a change to exactly that text.
 
-The status bar shows the last merge (`Co-edit: merged external edit at …`).
+Users of agent tools that already edit local files, such as Claude Code, need
+no bridge at all: point the tool at your vault and the plugin picks its edits
+up automatically.
 
-## Commands
+## What you get
 
-- **Re-sync active file from disk**: an escape hatch. discard the plugin's local
-  state for this file and reload the disk version.
+- **Tracked changes in the note**: proposed deletions struck through, proposed
+  insertions as green ghosts, an accept and a reject button on every change.
+- **A review dialog** for bigger proposals, with per change checkboxes,
+  conflict choices, and Enter to apply.
+- **A side panel**: chat with your AI, pending proposals with inline previews
+  and one click Accept all or Reject, their changes highlighted per author
+  color, comments, and an activity feed.
+- **Authorship you can see**: every accepted phrase is marked in its author's
+  color, and an audit note records who changed what and when.
+- **Snapshots**: the state before every external edit is kept, restorable any
+  time.
+- **Protected sections**: wrap text in `%%protect%% ... %%/protect%%` and no
+  collaborator can change it.
+- **Modes per folder**: require approval everywhere, merge automatically in
+  scratch folders, or switch the plugin off for chosen paths.
+- **Several AIs at once**: each collaborator gets a name, a color, and its own
+  address in the chat switcher.
 
-## Connecting an AI
+## Safety model
 
-The plugin is collaborator agnostic: anything that can edit files in your
-vault can propose changes, and each named collaborator gets its own highlight
-color. Two ready made bridges ship in `integrations/`, each a single Python
-file with no dependencies:
+Your words cannot be silently lost or replaced. Concurrent edits are three way
+merged at word level; conflicts keep your version; proposals wait for your
+decision whether the note is open, closed, or Obsidian was not even running
+when the edit happened; and every applied change has a snapshot behind it.
 
-**Claude** ([`claude-bridge.py`](integrations/claude-bridge.py)):
-
-1. Get an API key from console.anthropic.com and put it in your environment
-   (`export ANTHROPIC_API_KEY=...`) or a `.env` file beside the script.
-2. In Obsidian, add "claude" under Settings, AI Co-Editor, Collaborators.
-3. Run `python3 integrations/claude-bridge.py "/path/to/YourVault"`.
+## Connecting other AIs
 
 **Perplexity** ([`perplexity-bridge.py`](integrations/perplexity-bridge.py)):
 same steps with `PERPLEXITY_API_KEY` and the name "perplexity".
