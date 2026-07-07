@@ -288,27 +288,29 @@ export class CoEditPanelView extends ItemView {
       "Chat",
       msgs.length,
       (head) => {
-        // Collaborator switcher: choose who messages are addressed to.
-        const select = head.createEl("select", {
-          cls: "dropdown live-coedit-target",
-          attr: { "aria-label": "Who are you talking to?" },
-        });
-        const options = [
-          "everyone",
-          ...this.plugin.settings.collaborators.map((c) => c.name),
-        ];
-        for (const name of options) {
-          const opt = select.createEl("option", {
-            text: name === "everyone" ? "to: everyone" : `to: ${name}`,
+        // Collaborator switcher: only meaningful once there is more than one
+        // collaborator to choose between. With a single collaborator the chat
+        // simply talks to them, no dropdown.
+        const collabs = this.plugin.settings.collaborators;
+        if (collabs.length > 1) {
+          const select = head.createEl("select", {
+            cls: "dropdown live-coedit-target",
+            attr: { "aria-label": "Who are you talking to?" },
           });
-          opt.value = name;
+          const options = ["everyone", ...collabs.map((c) => c.name)];
+          for (const name of options) {
+            const opt = select.createEl("option", {
+              text: name === "everyone" ? "to: all" : `to: ${name}`,
+            });
+            opt.value = name;
+          }
+          select.value = this.plugin.settings.activeCollaborator;
+          select.addEventListener("pointerdown", (e) => e.stopPropagation());
+          select.addEventListener("click", (e) => e.stopPropagation());
+          select.addEventListener("change", () => {
+            void this.plugin.setActiveCollaborator(select.value);
+          });
         }
-        select.value = this.plugin.settings.activeCollaborator;
-        select.addEventListener("pointerdown", (e) => e.stopPropagation());
-        select.addEventListener("click", (e) => e.stopPropagation());
-        select.addEventListener("change", () => {
-          void this.plugin.setActiveCollaborator(select.value);
-        });
 
         const clear = head.createEl("button", {
           text: "Clear",
