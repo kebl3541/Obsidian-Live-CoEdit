@@ -78,6 +78,14 @@ export class CoEditPanelView extends ItemView {
       active.matches("textarea, input, select");
     if (typing && !force) return;
     const restoreFocus = Boolean(typing);
+    const refocusComposer = () => {
+      if (!restoreFocus) return;
+      window.setTimeout(() => {
+        this.contentEl
+          .querySelector<HTMLTextAreaElement>(".live-coedit-composer textarea")
+          ?.focus();
+      }, 0);
+    };
 
     const gen = ++this.refreshGen;
     const file = this.app.workspace.getActiveFile();
@@ -113,6 +121,7 @@ export class CoEditPanelView extends ItemView {
       comments.length === 0 &&
       snaps.length === 0
     ) {
+      refocusComposer();
       return;
     }
 
@@ -226,6 +235,7 @@ export class CoEditPanelView extends ItemView {
         s.createDiv({ cls: "live-coedit-activity", text: entry });
       }
     }
+    refocusComposer();
   }
 
   // Inline preview of what a pending proposal would change, rendered as
@@ -392,13 +402,6 @@ export class CoEditPanelView extends ItemView {
     // Scroll the chat into view for fast back-and-forth.
     if (log) {
       window.setTimeout(() => log.scrollTo({ top: log.scrollHeight }), 0);
-    }
-    if (restoreFocus) {
-      window.setTimeout(() => {
-        this.contentEl
-          .querySelector<HTMLTextAreaElement>(".live-coedit-composer textarea")
-          ?.focus();
-      }, 0);
     }
   }
 
