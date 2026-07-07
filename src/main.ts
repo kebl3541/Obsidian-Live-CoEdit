@@ -57,6 +57,9 @@ interface LiveCoEditSettings {
   chatPath: string;
   showRestorePoints: boolean;
   collapsedSections: string[];
+  // Where the floating "Ask collaborator" button may appear. In editing mode
+  // the right-click menu covers the feature, so "reading" is the default.
+  askButtonMode: "off" | "reading" | "always";
 }
 
 const DEFAULT_SETTINGS: LiveCoEditSettings = {
@@ -70,6 +73,7 @@ const DEFAULT_SETTINGS: LiveCoEditSettings = {
   chatPath: "Co-edit chat.md",
   showRestorePoints: false,
   collapsedSections: ["Activity"],
+  askButtonMode: "reading",
 };
 
 export interface ChatMessage {
@@ -675,10 +679,24 @@ export default class LiveCoEditPlugin extends Plugin {
 
   private askButtons = new Map<Document, HTMLButtonElement>();
 
+  private askButtonTimers = new Map<Document, number>();
+
   private setupAskButton(doc: Document) {
-    this.registerDomEvent(doc, "selectionchange", () =>
-      this.updateAskButton(doc)
-    );
+    // Debounced: the button appears only once the selection has been stable
+    // for a moment, so it never interferes with active editing.
+    this.registerDomEvent(doc, "selectionchange", () => {
+      this.hideAskButton(doc);
+      const prev = this.askButtonTimers.get(doc);
+      if (prev !== undefined) window.clearTimeout(prev);
+      this.askButtonTimers.set(
+        doc,
+        window.setTimeout(() => this.updateAskButton(doc), 600)
+      );
+    });
+    // Typing, deleting, or scrolling always dismisses it immediately.
+    this.registerDomEvent(doc, "keydown", () => this.hideAskButton(doc), {
+      capture: true,
+    });
     this.registerDomEvent(doc, "wheel", () => this.hideAskButton(doc), {
       capture: true,
       passive: true,
@@ -717,6 +735,7 @@ export default class LiveCoEditPlugin extends Plugin {
   }
 
   private updateAskButton(doc: Document) {
+    if (this.settings.askButtonMode === "off") return;
     const sel = doc.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
       this.hideAskButton(doc);
@@ -728,6 +747,12 @@ export default class LiveCoEditPlugin extends Plugin {
       this.hideAskButton(doc);
       return;
     }
+    // In editing mode the context menu covers this; the floating button would
+    // sit over text the user is actively working on.
+    if (this.settings.askButtonMode === "reading" && view.getMode() === "source") {
+      this.hideAskButton(doc);
+      return;
+    }
     const rect = range.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) {
       this.hideAskButton(doc);
@@ -735,7 +760,8 @@ export default class LiveCoEditPlugin extends Plugin {
     }
     const btn = this.getAskButton(doc);
     btn.addClass("is-visible");
-    btn.style.top = `${Math.max(8, rect.top - 34)}px`;
+    // Sit clearly above the selection, never on it.
+    btn.style.top = `${Math.max(8, rect.top - 44)}px`;
     btn.style.left = `${Math.max(8, rect.left + rect.width / 2 - 60)}px`;
   }
 
@@ -1319,6 +1345,23 @@ class LiveCoEditSettingTab extends PluginSettingTab {
           this.plugin.settings.userName = v.trim() || "me";
           await this.plugin.saveSettings();
         })
+      );
+
+    new Setting(containerEl)
+      .setName("Floating 'Ask collaborator' button")
+      .setDesc(
+        "Where the button may appear when you select text. In editing mode you can always use right-click → Ask collaborator, or the command."
+      )
+      .addDropdown((dd) =>
+        dd
+          .addOption("reading", "Reading view only (recommended)")
+          .addOption("always", "Reading and editing views")
+          .addOption("off", "Never")
+          .setValue(this.plugin.settings.askButtonMode)
+          .onChange(async (v) => {
+            this.plugin.settings.askButtonMode = v as "off" | "reading" | "always";
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(containerEl)
