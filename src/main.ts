@@ -273,6 +273,28 @@ export default class LiveCoEditPlugin extends Plugin {
       callback: () => void this.openPanel(),
     });
     this.addCommand({
+      id: "focus-chat",
+      name: "Focus co-edit chat",
+      callback: () => {
+        void this.openPanel().then(() => {
+          window.setTimeout(() => {
+            for (const leaf of this.app.workspace.getLeavesOfType(
+              PANEL_VIEW_TYPE
+            )) {
+              const box =
+                leaf.view.containerEl.querySelector<HTMLTextAreaElement>(
+                  ".live-coedit-composer textarea"
+                );
+              if (box) {
+                box.focus();
+                return;
+              }
+            }
+          }, 120);
+        });
+      },
+    });
+    this.addCommand({
       id: "resync-active-file",
       name: "Re-sync active file from disk",
       callback: () => void this.resyncActive(),
@@ -1299,11 +1321,36 @@ class ReviewModal extends Modal {
   private plugin: LiveCoEditPlugin;
   private path: string;
   private choices: boolean[] = [];
+  private checkboxes: HTMLInputElement[] = [];
 
   constructor(app: App, plugin: LiveCoEditPlugin, path: string) {
     super(app);
     this.plugin = plugin;
     this.path = path;
+  }
+
+  private applySelection() {
+    const fresh = this.plugin.getReviewData(this.path);
+    if (fresh) {
+      const freshProposals = fresh.segments.filter(
+        (s) => s.kind === "proposal"
+      ).length;
+      if (freshProposals !== this.choices.length) {
+        new Notice("The note changed while reviewing — please look again.");
+        this.close();
+        this.plugin.openReview(this.path);
+        return;
+      }
+      const finalText = composeSegments(fresh.segments, this.choices);
+      const accepted = this.choices.filter(Boolean).length;
+      void this.plugin.applyReviewed(
+        this.path,
+        finalText,
+        accepted,
+        this.choices.length
+      );
+    }
+    this.close();
   }
 
   // Render prose with inline word-level track changes: deleted words struck
@@ -1335,9 +1382,32 @@ class ReviewModal extends Modal {
     this.choices = proposals.map((p) =>
       p.kind === "proposal" ? !p.conflict : true
     );
+    this.checkboxes = [];
+
+    // Quick toggles when there are several changes to wade through.
+    if (proposals.length > 2) {
+      const toggles = contentEl.createDiv({ cls: "live-coedit-toggles" });
+      const all = toggles.createEl("button", { text: "Accept all" });
+      all.addEventListener("click", () => {
+        this.checkboxes.forEach((cb, i) => {
+          cb.checked = true;
+          this.choices[parseInt(cb.dataset.idx ?? String(i), 10)] = true;
+        });
+      });
+      const none = toggles.createEl("button", { text: "Accept none" });
+      none.addEventListener("click", () => {
+        this.checkboxes.forEach((cb, i) => {
+          cb.checked = false;
+          this.choices[parseInt(cb.dataset.idx ?? String(i), 10)] = false;
+        });
+      });
+    }
 
     const box = contentEl.createDiv({ cls: "live-coedit-diff live-coedit-diff-prose" });
     let p = 0;
+    // Track each proposal's char offset in the current buffer so a click on
+    // a hunk can jump straight to that spot in the note.
+    let bufferOffset = 0;
     for (let i = 0; i < data.segments.length; i++) {
       const seg = data.segments[i];
       if (seg.kind === "plain") {
@@ -1356,11 +1426,20 @@ class ReviewModal extends Modal {
             text: seg.lines[seg.lines.length - 1],
           });
         }
+        for (const l of seg.lines) bufferOffset += l.length + 1;
         continue;
       }
 
       const idx = p++;
+      const hunkOffset = bufferOffset;
+      for (const l of seg.mine) bufferOffset += l.length + 1;
       const wrap = box.createDiv({ cls: "live-coedit-hunk" });
+      wrap.setAttribute("title", "Click to jump to this spot in the note");
+      wrap.addEventListener("click", (evt) => {
+        // Don't hijack clicks meant for the checkboxes and radios.
+        if (evt.target instanceof HTMLInputElement) return;
+        void this.plugin.jumpTo(this.path, hunkOffset);
+      });
       const header = wrap.createDiv({ cls: "live-coedit-hunk-head" });
 
       if (seg.conflict) {
@@ -1384,6 +1463,8 @@ class ReviewModal extends Modal {
       } else {
         const cb = header.createEl("input", { type: "checkbox" });
         cb.checked = true;
+        cb.dataset.idx = String(idx);
+        this.checkboxes.push(cb);
         const label = header.createSpan({ text: " Accept" });
         label.addClass("live-coedit-accept-label");
         cb.addEventListener("change", () => (this.choices[idx] = cb.checked));
@@ -1392,27 +1473,13 @@ class ReviewModal extends Modal {
     }
 
     const buttons = contentEl.createDiv({ cls: "live-coedit-buttons" });
-    const apply = buttons.createEl("button", { text: "Apply accepted changes" });
+    const apply = buttons.createEl("button", { text: "Apply accepted changes (Enter)" });
     apply.addClass("mod-cta");
-    apply.addEventListener("click", () => {
-      const fresh = this.plugin.getReviewData(this.path);
-      if (fresh) {
-        const freshProposals = fresh.segments.filter(
-          (s) => s.kind === "proposal"
-        ).length;
-        if (freshProposals !== this.choices.length) {
-          // The note changed while this dialog was open; the checkboxes no
-          // longer line up with the hunks. Re-open on the fresh state.
-          new Notice("The note changed while reviewing — please look again.");
-          this.close();
-          this.plugin.openReview(this.path);
-          return;
-        }
-        const finalText = composeSegments(fresh.segments, this.choices);
-        const accepted = this.choices.filter(Boolean).length;
-        void this.plugin.applyReviewed(this.path, finalText, accepted, this.choices.length);
-      }
-      this.close();
+    apply.addEventListener("click", () => this.applySelection());
+    // Enter applies from anywhere in the dialog.
+    this.scope.register([], "Enter", (evt) => {
+      evt.preventDefault();
+      this.applySelection();
     });
     const reject = buttons.createEl("button", { text: "Reject all" });
     reject.addClass("mod-warning");

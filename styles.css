@@ -409,3 +409,23 @@
   font-size: var(--font-ui-smaller);
   max-width: 130px;
 }
+
+/* Review dialog quick toggles. */
+.live-coedit-toggles {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.live-coedit-toggles button {
+  font-size: var(--font-ui-smaller);
+  padding: 2px 10px;
+}
+
+.live-coedit-hunk {
+  cursor: pointer;
+}
+
+.live-coedit-hunk:hover {
+  border-color: var(--interactive-accent);
+}

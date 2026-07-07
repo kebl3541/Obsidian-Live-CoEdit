@@ -306,6 +306,19 @@ export class CoEditPanelView extends ItemView {
           });
         }
 
+        const open = head.createEl("button", {
+          text: "History",
+          cls: "live-coedit-headbtn",
+          attr: { "aria-label": "Open the full chat note" },
+        });
+        open.addEventListener("click", (e) => {
+          e.stopPropagation();
+          void this.app.workspace.openLinkText(
+            this.plugin.settings.chatPath,
+            "",
+            true
+          );
+        });
         const clear = head.createEl("button", {
           text: "Clear",
           cls: "live-coedit-headbtn",
