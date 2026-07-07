@@ -1358,24 +1358,50 @@ export default class LiveCoEditPlugin extends Plugin {
       }
       const mineText = seg.mine.join("\n");
       const theirsText = seg.theirs.join("\n");
-      let off = bufferOffset;
-      let hasAdd = false;
-      let lastDelEnd = bufferOffset;
-      for (const tok of diffWords(mineText, theirsText)) {
-        if (tok.kind === "same") {
-          off += tok.text.length;
-        } else if (tok.kind === "del") {
-          dels.push({ from: off, to: off + tok.text.length, proposalIndex: idx });
-          off += tok.text.length;
-          lastDelEnd = off;
-        } else {
-          adds.push({ pos: off, text: tok.text, proposalIndex: idx });
-          hasAdd = true;
+      const tokens = diffWords(mineText, theirsText);
+      const addRuns = tokens.filter((t) => t.kind === "add").length;
+      const changed = tokens
+        .filter((t) => t.kind !== "same")
+        .reduce((n, t) => n + t.text.length, 0);
+      const ratio = changed / Math.max(1, mineText.length + theirsText.length);
+
+      if (addRuns > 2 || ratio > 0.4) {
+        // Heavy rewrite: strike the whole old stretch once, and show the
+        // complete new text once at its end, instead of interleaving ghosts
+        // after every changed word.
+        if (mineText.length > 0) {
+          dels.push({
+            from: bufferOffset,
+            to: bufferOffset + mineText.length,
+            proposalIndex: idx,
+          });
         }
-      }
-      // Deletion-only proposals still need their accept and reject buttons.
-      if (!hasAdd) {
-        adds.push({ pos: lastDelEnd, text: "", proposalIndex: idx });
+        adds.push({
+          pos: bufferOffset + mineText.length,
+          text: theirsText.length > 0 ? " " + theirsText : "",
+          proposalIndex: idx,
+        });
+      } else {
+        // Light edit: word-level marks, precise and quiet.
+        let off = bufferOffset;
+        let hasAdd = false;
+        let lastDelEnd = bufferOffset;
+        for (const tok of tokens) {
+          if (tok.kind === "same") {
+            off += tok.text.length;
+          } else if (tok.kind === "del") {
+            dels.push({ from: off, to: off + tok.text.length, proposalIndex: idx });
+            off += tok.text.length;
+            lastDelEnd = off;
+          } else {
+            adds.push({ pos: off, text: tok.text, proposalIndex: idx });
+            hasAdd = true;
+          }
+        }
+        // Deletion-only proposals still need their accept and reject buttons.
+        if (!hasAdd) {
+          adds.push({ pos: lastDelEnd, text: "", proposalIndex: idx });
+        }
       }
       for (const l of seg.mine) bufferOffset += l.length + 1;
       idx++;
