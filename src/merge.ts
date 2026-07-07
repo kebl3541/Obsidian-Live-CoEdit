@@ -330,6 +330,46 @@ export function merge3Segments(
   return { segments, conflicts };
 }
 
+// Word-level diff of two prose passages, for track-changes style rendering
+// and word-accurate highlights. Tokens keep their whitespace so that
+// concatenating them reproduces the exact text.
+export interface WordToken {
+  kind: "same" | "del" | "add";
+  text: string;
+}
+
+export function diffWords(before: string, after: string): WordToken[] {
+  const tokenize = (s: string) => s.split(/(\s+)/).filter((t) => t.length > 0);
+  const a = tokenize(before);
+  const b = tokenize(after);
+
+  if ((a.length + 1) * (b.length + 1) > LCS_GUARD) {
+    const out: WordToken[] = [];
+    if (before) out.push({ kind: "del", text: before });
+    if (after) out.push({ kind: "add", text: after });
+    return out;
+  }
+
+  const hunks = diffLines(a, b); // generic over string arrays
+  const out: WordToken[] = [];
+  const push = (kind: WordToken["kind"], text: string) => {
+    if (!text) return;
+    const last = out[out.length - 1];
+    if (last && last.kind === kind) last.text += text;
+    else out.push({ kind, text });
+  };
+
+  let pos = 0;
+  for (const h of hunks) {
+    push("same", a.slice(pos, h.baseStart).join(""));
+    push("del", a.slice(h.baseStart, h.baseEnd).join(""));
+    push("add", h.lines.join(""));
+    pos = h.baseEnd;
+  }
+  push("same", a.slice(pos).join(""));
+  return out;
+}
+
 // Compose a document from segments and per-proposal decisions. `choices[i]`
 // corresponds to the i-th proposal segment: true = take theirs, false = keep
 // mine. Missing choices default to the safe side (theirs for clean proposals,

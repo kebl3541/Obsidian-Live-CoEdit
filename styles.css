@@ -17,16 +17,61 @@
 }
 
 /* Review dialog. */
+.live-coedit-modal {
+  width: min(90vw, 860px);
+}
+
 .live-coedit-diff {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
-  max-height: 55vh;
+  max-height: 60vh;
   overflow-y: auto;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  padding: 8px;
+  padding: 12px;
   margin-bottom: 1em;
   white-space: pre-wrap;
+}
+
+/* Prose (track changes) rendering for academic writing. */
+.live-coedit-diff-prose {
+  font-family: var(--font-text);
+  font-size: var(--font-text-size, 16px);
+  line-height: 1.6;
+}
+
+.live-coedit-prose {
+  white-space: pre-wrap;
+  margin: 4px 0;
+}
+
+.live-coedit-w-del {
+  background-color: rgba(var(--color-red-rgb), 0.14);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--color-red-rgb), 0.8);
+  opacity: 0.75;
+  border-radius: 2px;
+}
+
+.live-coedit-w-add {
+  background-color: rgba(var(--color-green-rgb), 0.2);
+  border-radius: 2px;
+}
+
+.live-coedit-context {
+  color: var(--text-faint);
+  white-space: pre-wrap;
+  margin: 2px 0;
+}
+
+.live-coedit-version {
+  border-left: 3px solid var(--background-modifier-border);
+  padding-left: 8px;
+  margin: 4px 0 8px 16px;
+}
+
+.live-coedit-accept-label {
+  font-weight: 600;
 }
 
 .live-coedit-line {

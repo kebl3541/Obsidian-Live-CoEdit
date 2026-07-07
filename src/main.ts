@@ -15,6 +15,7 @@ import {
   Segment,
   composeSegments,
   diffLines,
+  diffWords,
   merge3,
   merge3Segments,
 } from "./merge";
@@ -556,6 +557,9 @@ export default class LiveCoEditPlugin extends Plugin {
     const hunks = diffLines(prevLines, next.split("\n"));
     if (hunks.length === 0) return;
 
+    // Word-level precision: inside each changed line-hunk, mark only the
+    // words that are actually new — a one-word tweak in a long paragraph
+    // highlights one word, not the paragraph.
     const ranges: MarkRange[] = [];
     let prevLine = 0;
     let nextOffset = 0;
@@ -570,8 +574,23 @@ export default class LiveCoEditPlugin extends Plugin {
         nextOffset += nextLen[nextLine];
         nextLine++;
       }
-      const to = h.lines.length > 0 ? nextOffset - 1 : nextOffset;
-      if (to > from) ranges.push({ from, to: Math.min(to, next.length) });
+      const hunkEnd = h.lines.length > 0 ? nextOffset - 1 : nextOffset;
+
+      if (hunkEnd > from) {
+        const prevText = prevLines.slice(h.baseStart, h.baseEnd).join("\n");
+        const nextText = h.lines.join("\n");
+        let off = from;
+        for (const tok of diffWords(prevText, nextText)) {
+          if (tok.kind === "del") continue; // not present in `next`
+          if (tok.kind === "add" && tok.text.trim().length > 0) {
+            ranges.push({
+              from: off,
+              to: Math.min(off + tok.text.length, next.length),
+            });
+          }
+          off += tok.text.length;
+        }
+      }
       prevLine = h.baseEnd;
     }
 
@@ -808,36 +827,56 @@ class ReviewModal extends Modal {
     this.path = path;
   }
 
+  // Render prose with inline word-level track changes: deleted words struck
+  // red, inserted words green — like reviewing edits in a word processor.
+  private renderTrackChanges(parent: HTMLElement, before: string, after: string) {
+    const para = parent.createDiv({ cls: "live-coedit-prose" });
+    for (const tok of diffWords(before, after)) {
+      if (tok.kind === "same") para.createSpan({ text: tok.text });
+      else if (tok.kind === "del")
+        para.createSpan({ cls: "live-coedit-w-del", text: tok.text });
+      else para.createSpan({ cls: "live-coedit-w-add", text: tok.text });
+    }
+  }
+
   onOpen() {
-    const { contentEl, titleEl } = this;
+    const { contentEl, titleEl, modalEl } = this;
+    modalEl.addClass("live-coedit-modal");
     const data = this.plugin.getReviewData(this.path);
     if (!data) {
       titleEl.setText("Review");
       contentEl.setText("This edit is no longer pending.");
       return;
     }
-    titleEl.setText(`Proposed by ${data.collaborator} — ${this.path}`);
 
     const proposals = data.segments.filter((s) => s.kind === "proposal");
+    titleEl.setText(
+      `${data.collaborator} suggests ${proposals.length} change${proposals.length === 1 ? "" : "s"}`
+    );
     this.choices = proposals.map((p) =>
       p.kind === "proposal" ? !p.conflict : true
     );
 
-    const box = contentEl.createDiv({ cls: "live-coedit-diff" });
+    const box = contentEl.createDiv({ cls: "live-coedit-diff live-coedit-diff-prose" });
     let p = 0;
     for (let i = 0; i < data.segments.length; i++) {
       const seg = data.segments[i];
       if (seg.kind === "plain") {
-        // Two lines of context on each side of a change.
+        // One line of surrounding context, muted.
         const prevIsChange = i > 0;
         const nextIsChange = i < data.segments.length - 1;
-        const head = prevIsChange ? seg.lines.slice(0, 2) : [];
-        const tail = nextIsChange ? seg.lines.slice(-2) : [];
-        for (const l of head) box.createDiv({ cls: "live-coedit-line", text: `  ${l}` });
-        if (seg.lines.length > 4 && prevIsChange && nextIsChange) {
-          box.createDiv({ cls: "live-coedit-skip", text: `  ⋯ ${seg.lines.length - 4} unchanged lines ⋯` });
+        if (prevIsChange && seg.lines.length > 0) {
+          box.createDiv({ cls: "live-coedit-context", text: seg.lines[0] });
         }
-        for (const l of tail) box.createDiv({ cls: "live-coedit-line", text: `  ${l}` });
+        if (seg.lines.length > 2 && prevIsChange && nextIsChange) {
+          box.createDiv({ cls: "live-coedit-skip", text: `⋯` });
+        }
+        if (nextIsChange && seg.lines.length > 1) {
+          box.createDiv({
+            cls: "live-coedit-context",
+            text: seg.lines[seg.lines.length - 1],
+          });
+        }
         continue;
       }
 
@@ -846,36 +885,35 @@ class ReviewModal extends Modal {
       const header = wrap.createDiv({ cls: "live-coedit-hunk-head" });
 
       if (seg.conflict) {
-        header.createSpan({ cls: "live-coedit-conflict-tag", text: "conflict — pick one" });
+        header.createSpan({
+          cls: "live-coedit-conflict-tag",
+          text: "You both changed this — pick one",
+        });
         const mineDiv = wrap.createDiv({ cls: "live-coedit-choice" });
         const mineRadio = mineDiv.createEl("input", { type: "radio" });
         mineRadio.name = `conflict-${idx}`;
         mineRadio.checked = true;
-        mineDiv.createSpan({ text: " your version:" });
-        for (const l of seg.mine)
-          wrap.createDiv({ cls: "live-coedit-line live-coedit-del", text: `  ${l}` });
+        mineDiv.createSpan({ text: " Keep yours:" });
+        wrap.createDiv({ cls: "live-coedit-prose live-coedit-version", text: seg.mine.join("\n") });
         const theirsDiv = wrap.createDiv({ cls: "live-coedit-choice" });
         const theirsRadio = theirsDiv.createEl("input", { type: "radio" });
         theirsRadio.name = `conflict-${idx}`;
-        theirsDiv.createSpan({ text: ` ${data.collaborator}'s version:` });
-        for (const l of seg.theirs)
-          wrap.createDiv({ cls: "live-coedit-line live-coedit-add", text: `  ${l}` });
+        theirsDiv.createSpan({ text: ` Take ${data.collaborator}'s:` });
+        wrap.createDiv({ cls: "live-coedit-prose live-coedit-version", text: seg.theirs.join("\n") });
         mineRadio.addEventListener("change", () => (this.choices[idx] = false));
         theirsRadio.addEventListener("change", () => (this.choices[idx] = true));
       } else {
         const cb = header.createEl("input", { type: "checkbox" });
         cb.checked = true;
-        header.createSpan({ text: " include this change" });
+        const label = header.createSpan({ text: " Accept" });
+        label.addClass("live-coedit-accept-label");
         cb.addEventListener("change", () => (this.choices[idx] = cb.checked));
-        for (const l of seg.mine)
-          wrap.createDiv({ cls: "live-coedit-line live-coedit-del", text: `- ${l}` });
-        for (const l of seg.theirs)
-          wrap.createDiv({ cls: "live-coedit-line live-coedit-add", text: `+ ${l}` });
+        this.renderTrackChanges(wrap, seg.mine.join("\n"), seg.theirs.join("\n"));
       }
     }
 
     const buttons = contentEl.createDiv({ cls: "live-coedit-buttons" });
-    const apply = buttons.createEl("button", { text: "Apply selection" });
+    const apply = buttons.createEl("button", { text: "Apply accepted changes" });
     apply.addClass("mod-cta");
     apply.addEventListener("click", () => {
       const fresh = this.plugin.getReviewData(this.path);
