@@ -1,4 +1,5 @@
 import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { diffWords } from "./merge";
 import type LiveCoEditPlugin from "./main";
 
 export const PANEL_VIEW_TYPE = "live-coedit-panel";
@@ -130,6 +131,7 @@ export class CoEditPanelView extends ItemView {
         if (summary) {
           row.createSpan({ cls: "live-coedit-excerpt", text: summary });
         }
+        this.renderPendingPreview(row, path);
         const review = row.createEl("button", { text: "Review" });
         review.addClass("mod-cta");
         review.addEventListener("click", () => this.plugin.openReview(path));
@@ -219,6 +221,54 @@ export class CoEditPanelView extends ItemView {
       for (const entry of recent.slice(0, 8)) {
         s.createDiv({ cls: "live-coedit-activity", text: entry });
       }
+    }
+  }
+
+  // Inline preview of what a pending proposal would change, rendered as
+  // word-level track changes right in the panel, so accepting is never blind.
+  private renderPendingPreview(parent: HTMLElement, path: string) {
+    const data = this.plugin.getReviewData(path);
+    if (!data) return;
+    const proposals = data.segments.filter(
+      (s) => s.kind === "proposal"
+    ) as Array<{ kind: "proposal"; mine: string[]; theirs: string[]; conflict: boolean }>;
+
+    const MAX_SHOWN = 3;
+    const box = parent.createDiv({ cls: "live-coedit-preview" });
+    for (const p of proposals.slice(0, MAX_SHOWN)) {
+      const para = box.createDiv({ cls: "live-coedit-preview-hunk" });
+      if (p.conflict) {
+        para.createSpan({
+          cls: "live-coedit-conflict-tag",
+          text: "conflict · ",
+        });
+      }
+      const tokens = diffWords(p.mine.join("\n"), p.theirs.join("\n"));
+      for (const tok of tokens) {
+        if (tok.kind === "same") {
+          // Collapse long unchanged runs so the changed words stand out.
+          const words = tok.text.split(/(\s+)/);
+          if (words.filter((w) => w.trim()).length > 10) {
+            const head = words.slice(0, 6).join("");
+            const tail = words.slice(-6).join("");
+            para.createSpan({ text: head });
+            para.createSpan({ cls: "live-coedit-skip-inline", text: " … " });
+            para.createSpan({ text: tail });
+          } else {
+            para.createSpan({ text: tok.text });
+          }
+        } else if (tok.kind === "del") {
+          para.createSpan({ cls: "live-coedit-w-del", text: tok.text });
+        } else {
+          para.createSpan({ cls: "live-coedit-w-add", text: tok.text });
+        }
+      }
+    }
+    if (proposals.length > MAX_SHOWN) {
+      box.createDiv({
+        cls: "live-coedit-skip-inline",
+        text: `… and ${proposals.length - MAX_SHOWN} more, open Review to see all`,
+      });
     }
   }
 

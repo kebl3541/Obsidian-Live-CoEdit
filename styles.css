@@ -381,3 +381,24 @@
   font-family: var(--font-interface);
   font-size: var(--font-ui-small);
 }
+
+/* Inline diff preview inside the pending row. */
+.live-coedit-preview {
+  flex-basis: 100%;
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  margin: 4px 0 6px 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--interactive-accent);
+  background-color: var(--background-primary);
+  border-radius: var(--radius-s);
+  white-space: pre-wrap;
+}
+
+.live-coedit-preview-hunk {
+  margin-bottom: 4px;
+}
+
+.live-coedit-skip-inline {
+  color: var(--text-faint);
+}
