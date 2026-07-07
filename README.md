@@ -13,11 +13,11 @@ continued development, please use the buttons below:</p>
 <a href="https://buymeacoffee.com/philosophizer"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="52"></a>
 </p>
 
-<p align="center">…and if this plugin makes your day a little easier, please give it a ⭐ on <a href="https://github.com/kebl3541/Obsidian-Live-CoEdit">GitHub</a> — it helps others find it!</p>
+<p align="center">…and if this plugin makes your day a little easier, please give it a ⭐ on <a href="https://github.com/kebl3541/Obsidian-Live-CoEdit">GitHub</a>, it helps others find it!</p>
 
 
 Co-edit the **same open note simultaneously with an AI** (Claude Code and other
-file-editing assistants) — it proposes, you review as track changes, and
+file-editing assistants). It proposes, you review as track changes, and
 nobody's words get lost. Works with scripts and other external editors too.
 
 ## The problem it solves
@@ -30,7 +30,7 @@ Live Co-Edit keeps a shadow copy of every open markdown file. When the file
 changes on disk while you're editing it, the plugin **three-way merges** the
 external change into your editor:
 
-- Edits to **different parts** of the note merge silently — your cursor stays
+- Edits to **different parts** of the note merge silently, and your cursor stays
   exactly where it was.
 - Edits to the **same lines** keep **your** version, and a notice tells you a
   conflict was resolved.
@@ -47,7 +47,7 @@ The status bar shows the last merge (`Co-edit: merged external edit at …`).
 
 ## Commands
 
-- **Re-sync active file from disk** — escape hatch: discard the plugin's local
+- **Re-sync active file from disk**: an escape hatch. discard the plugin's local
   state for this file and reload the disk version.
 
 ## Limits, honestly
