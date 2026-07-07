@@ -1,7 +1,7 @@
 {
   "id": "live-coedit",
   "name": "Live Co-Edit",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "minAppVersion": "1.4.0",
   "description": "Co-edit open notes with external tools (AI assistants, scripts, other editors): changes on disk merge live into your editor without losing your typing.",
   "author": "kebl3541",

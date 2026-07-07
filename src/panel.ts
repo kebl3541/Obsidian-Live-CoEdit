@@ -61,12 +61,26 @@ export class CoEditPanelView extends ItemView {
     return b;
   }
 
+  // Guards against overlapping refreshes double-painting the panel: all data
+  // is gathered first, then the DOM is rebuilt in one synchronous pass, and
+  // stale refreshes abandon before painting.
+  private refreshGen = 0;
+
   async refresh(): Promise<void> {
+    const gen = ++this.refreshGen;
+    const file = this.app.workspace.getActiveFile();
+
+    // Gather everything up front (async), before touching the DOM.
+    const pendingPaths = this.plugin.pendingPaths();
+    const marks = file ? this.plugin.marksInFile(file.path) : [];
+    const comments = file ? this.plugin.commentsInFile(file.path) : [];
+    const snaps = file ? await this.plugin.snapshotList(file.path) : [];
+    const msgs = await this.plugin.chatMessages();
+    if (gen !== this.refreshGen) return; // a newer refresh superseded this one
+
     const el = this.contentEl;
     el.empty();
     el.addClass("live-coedit-panel");
-
-    const file = this.app.workspace.getActiveFile();
 
     // Header with the active file's name and a refresh button.
     const header = el.createDiv({ cls: "live-coedit-header" });
@@ -74,11 +88,6 @@ export class CoEditPanelView extends ItemView {
       text: file ? basename(file.path) : "No file open",
     });
     this.iconBtn(header, "refresh-cw", "Refresh", () => void this.refresh());
-
-    const pendingPaths = this.plugin.pendingPaths();
-    const marks = file ? this.plugin.marksInFile(file.path) : [];
-    const comments = file ? this.plugin.commentsInFile(file.path) : [];
-    const snaps = file ? await this.plugin.snapshotList(file.path) : [];
 
     // Friendly empty state when nothing is happening (chat still shows below).
     if (
@@ -97,7 +106,7 @@ export class CoEditPanelView extends ItemView {
         cls: "live-coedit-hint",
         text: "When your collaborator edits an open note, proposals to review, their highlighted changes, comments, and restore points all show up here.",
       });
-      await this.renderChat(el);
+      this.renderChat(el, msgs);
       return;
     }
 
@@ -202,12 +211,14 @@ export class CoEditPanelView extends ItemView {
       }
     }
 
-    await this.renderChat(el);
+    this.renderChat(el, msgs);
   }
 
   // Chat with the collaborator, backed by the chat note.
-  private async renderChat(parent: HTMLElement) {
-    const msgs = await this.plugin.chatMessages();
+  private renderChat(
+    parent: HTMLElement,
+    msgs: Awaited<ReturnType<LiveCoEditPlugin["chatMessages"]>>
+  ) {
     const s = this.section(parent, "message-square", "Chat", msgs.length);
 
     const log = s.createDiv({ cls: "live-coedit-chatlog" });

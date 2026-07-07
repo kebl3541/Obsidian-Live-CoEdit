@@ -1,6 +1,6 @@
 {
   "name": "live-coedit",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Live three-way merge of external file changes into open Obsidian editors.",
   "main": "main.js",
   "scripts": {
