@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "test": "node test/merge.test.mjs"
+    "test": "esbuild src/merge.ts --format=esm --outfile=test/merge.build.mjs && node test/merge.test.mjs"
   },
   "keywords": [
     "obsidian",
