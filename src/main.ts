@@ -771,6 +771,32 @@ export default class LiveCoEditPlugin extends Plugin {
 
     const buffer = editor.getValue();
     if (buffer === disk) {
+      const shadow = this.shadows.get(af.path);
+      const userSaved = Date.now() - this.lastUserInput < 4000;
+      if (shadow !== undefined && shadow !== disk && !userSaved) {
+        // Obsidian silently loaded an external change into a clean editor.
+        // Reclaim it: restore the user's version and raise a proposal.
+        const who2 = await this.collaboratorName();
+        const guarded2 = this.applyProtectedRegions(shadow, disk);
+        if (mode === "approve") {
+          this.pending.set(af.path, {
+            theirs: guarded2,
+            base: shadow,
+            collaborator: who2,
+          });
+          void this.saveSettings();
+          this.applyMinimalEdit(editor, shadow);
+          this.announcePending(af.path, who2);
+          this.refreshInlineProposals(af.path);
+          this.log(`${who2} edited ${af.path} (reclaimed from silent adoption)`);
+          return;
+        }
+        // Auto mode: keep the content but do the bookkeeping it deserves.
+        await this.snapshots.save(af.path, shadow);
+        this.markExternalChanges(editor, shadow, guarded2, this.slotFor(who2));
+        await this.appendAudit(who2, af.path, shadow, guarded2);
+        this.log(`${who2} edited ${af.path} (applied)`);
+      }
       this.shadows.set(af.path, disk);
       return;
     }
