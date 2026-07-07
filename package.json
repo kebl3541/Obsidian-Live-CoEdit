@@ -1,6 +1,6 @@
 {
   "name": "live-coedit",
-  "version": "2.16.3",
+  "version": "2.16.4",
   "description": "Co-edit Obsidian notes live with an AI collaborator - track changes, approvals, chat.",
   "main": "main.js",
   "scripts": {

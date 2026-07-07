@@ -164,6 +164,9 @@ export default class LiveCoEditPlugin extends Plugin {
   // <configDir>/live-coedit-status.json while they work.
   collabStatus: { name: string; state: string; ts: number } | null = null;
   private changeQueue: Promise<void> = Promise.resolve();
+  // Paths mid-resolution: the inline layer must not auto-revert while an
+  // accept is being applied, or it would undo the user's decision.
+  private resolvingPaths = new Set<string>();
   private lastStatusVisible = false;
 
   // Cache of computed review segments, keyed by content hashes, so panel
@@ -1253,6 +1256,7 @@ export default class LiveCoEditPlugin extends Plugin {
       const pend = this.pending.get(path);
       if (
         pend &&
+        !this.resolvingPaths.has(path) &&
         editor.getValue() === pend.theirs &&
         pend.base !== pend.theirs
       ) {
@@ -1335,44 +1339,56 @@ export default class LiveCoEditPlugin extends Plugin {
     const proposals = data.segments.filter((s) => s.kind === "proposal");
     if (index < 0 || index >= proposals.length) return;
 
-    if (accept) {
-      // Compose the document with exactly this hunk taken, using the same
-      // engine as the review dialog. Never hand-rolled offsets: an earlier
-      // version ate a newline that way.
-      const choices = proposals.map((_, k) => k === index);
-      const newBuffer = composeSegments(data.segments, choices);
-      const before = editor.getValue();
-      await this.snapshots.save(path, before);
-      this.applyMinimalEdit(editor, newBuffer);
-      this.markExternalChanges(
-        editor,
-        before,
-        newBuffer,
-        this.slotFor(pend.collaborator)
-      );
-      await this.appendAudit(pend.collaborator, path, before, newBuffer);
-      this.log(`you accepted 1 change from ${pend.collaborator} in ${path}`);
-    } else {
-      // Fold this hunk back to the user's version inside the proposal.
-      const choices = proposals.map((_, k) => k !== index);
-      pend.theirs = composeSegments(data.segments, choices);
-      this.log(`you rejected 1 change from ${pend.collaborator} in ${path}`);
-    }
+    this.resolvingPaths.add(path);
+    let before = "";
+    let after = "";
+    try {
+      if (accept) {
+        // Compose the document with exactly this hunk taken, using the same
+        // engine as the review dialog. Never hand-rolled offsets.
+        const choices = proposals.map((_, k) => k === index);
+        after = composeSegments(data.segments, choices);
+        before = editor.getValue();
+        this.applyMinimalEdit(editor, after);
+        this.shadows.set(path, after);
+        this.markExternalChanges(
+          editor,
+          before,
+          after,
+          this.slotFor(pend.collaborator)
+        );
+        this.log(`you accepted 1 change from ${pend.collaborator} in ${path}`);
+      } else {
+        // Fold this hunk back to the user's version inside the proposal.
+        const choices = proposals.map((_, k) => k !== index);
+        pend.theirs = composeSegments(data.segments, choices);
+        this.log(`you rejected 1 change from ${pend.collaborator} in ${path}`);
+      }
 
-    this.reviewCache.delete(path);
-    // If nothing is left to review, the proposal is settled.
-    const fresh = this.getReviewData(path);
-    const remaining = fresh
-      ? fresh.segments.filter((s) => s.kind === "proposal").length
-      : 0;
-    if (remaining === 0) {
-      this.dropPending(path);
-      this.setStatus("all changes resolved");
-    } else {
-      void this.saveSettings();
-      this.refreshInlineProposals(path);
+      // Settle the pending state BEFORE any slow I/O, so no refresh tick can
+      // observe a half-resolved proposal.
+      this.reviewCache.delete(path);
+      const fresh = this.getReviewData(path);
+      const remaining = fresh
+        ? fresh.segments.filter((s) => s.kind === "proposal").length
+        : 0;
+      if (remaining === 0) {
+        this.dropPending(path);
+        this.setStatus("all changes resolved");
+      } else {
+        void this.saveSettings();
+        this.refreshInlineProposals(path);
+      }
+      this.refreshPanel();
+
+      // Slow bookkeeping afterwards.
+      if (accept) {
+        await this.snapshots.save(path, before);
+        await this.appendAudit(pend.collaborator, path, before, after);
+      }
+    } finally {
+      this.resolvingPaths.delete(path);
     }
-    this.refreshPanel();
   }
 
   // ---- Highlights -------------------------------------------------------------
