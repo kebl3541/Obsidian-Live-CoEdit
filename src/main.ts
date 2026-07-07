@@ -167,6 +167,10 @@ export default class LiveCoEditPlugin extends Plugin {
   // Paths mid-resolution: the inline layer must not auto-revert while an
   // accept is being applied, or it would undo the user's decision.
   private resolvingPaths = new Set<string>();
+  // Timestamp of the last real user input in any editor. Obsidian silently
+  // loads external changes into clean editors; the absence of recent input is
+  // how we tell those apart from the user's own saves.
+  private lastUserInput = 0;
   private lastStatusVisible = false;
 
   // Cache of computed review segments, keyed by content hashes, so panel
@@ -307,6 +311,23 @@ export default class LiveCoEditPlugin extends Plugin {
             .onClick(() => this.askAboutSelection(editor, view))
         );
       })
+    );
+
+    // Record genuine user input so external adoptions can be distinguished
+    // from the user's own saves.
+    const inputRecorder = (evt: Event) => {
+      const t = evt.target as HTMLElement | null;
+      if (t?.closest?.(".cm-editor")) this.lastUserInput = Date.now();
+    };
+    const armInputRecorder = (doc: Document) => {
+      this.registerDomEvent(doc, "keydown", inputRecorder, { capture: true });
+      this.registerDomEvent(doc, "beforeinput", inputRecorder, { capture: true });
+      this.registerDomEvent(doc, "paste", inputRecorder, { capture: true });
+      this.registerDomEvent(doc, "drop", inputRecorder, { capture: true });
+    };
+    armInputRecorder(activeDocument);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (win) => armInputRecorder(win.doc))
     );
 
     // Ghost buttons: one capture-phase listener per window, immune to the
