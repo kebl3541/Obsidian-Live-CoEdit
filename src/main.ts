@@ -121,6 +121,9 @@ interface PersistedData {
   settings: LiveCoEditSettings;
   highlights: Record<string, PersistedHighlights>;
   pending?: Record<string, PendingEdit>;
+  // Last-seen content of recently co-edited files, so external edits made
+  // while Obsidian was closed still become reviewable proposals on launch.
+  shadows?: Record<string, string>;
 }
 
 export interface MarkListing {
@@ -390,6 +393,25 @@ export default class LiveCoEditPlugin extends Plugin {
       for (const [path, pend] of this.pending) {
         this.announcePending(path, pend.collaborator);
       }
+      // Detect edits made while Obsidian was closed: persisted shadow differs
+      // from what is on disk now, and nothing is pending yet.
+      void (async () => {
+        for (const [path, prev] of [...this.shadows.entries()]) {
+          if (this.pending.has(path)) continue;
+          if (this.modeFor(path) !== "approve") continue;
+          const f = this.app.vault.getAbstractFileByPath(path);
+          if (!(f instanceof TFile)) continue;
+          const disk = await this.app.vault.cachedRead(f);
+          if (disk !== prev) {
+            const who = await this.collaboratorName();
+            const guarded = this.applyProtectedRegions(prev, disk);
+            this.pending.set(path, { theirs: guarded, base: prev, collaborator: who });
+            this.announcePending(path, who);
+            this.log(`${who} edited ${path} while Obsidian was closed`);
+          }
+        }
+        void this.saveSettings();
+      })();
       const f = this.app.workspace.getActiveFile();
       if (f) this.restoreHighlights(f);
     });
@@ -415,6 +437,9 @@ export default class LiveCoEditPlugin extends Plugin {
       for (const [path, pend] of Object.entries(raw.pending ?? {})) {
         this.pending.set(path, pend);
       }
+      for (const [path, content] of Object.entries(raw.shadows ?? {})) {
+        this.shadows.set(path, content);
+      }
     } else {
       // v1 data.json stored the settings object directly.
       this.settings = Object.assign(
@@ -428,10 +453,16 @@ export default class LiveCoEditPlugin extends Plugin {
 
   async saveSettings() {
     this.snapshots?.setLimit(this.settings.snapshotLimit);
+    // Persist the most recent shadows (small files only) so closed-vault
+    // external edits are caught on next launch.
+    const shadowEntries = [...this.shadows.entries()]
+      .filter(([, content]) => content.length <= 200_000)
+      .slice(-20);
     const data: PersistedData = {
       settings: this.settings,
       highlights: this.settings.rememberHighlights ? this.highlights : {},
       pending: Object.fromEntries(this.pending),
+      shadows: Object.fromEntries(shadowEntries),
     };
     await this.saveData(data);
   }
@@ -570,6 +601,28 @@ export default class LiveCoEditPlugin extends Plugin {
     return (editor as unknown as { cm?: EditorView }).cm ?? null;
   }
 
+  // Regions wrapped in %%protect%% ... %%/protect%% belong to the user alone:
+  // whatever a collaborator wrote inside them is folded back to the user's
+  // version before merging or proposing.
+  private applyProtectedRegions(buffer: string, theirs: string): string {
+    const re = /%%protect%%([\s\S]*?)%%\/protect%%/g;
+    const mineBlocks: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(buffer)) !== null) mineBlocks.push(m[1]);
+    if (mineBlocks.length === 0) return theirs;
+
+    let i = 0;
+    let touched = false;
+    const out = theirs.replace(re, (whole, inner: string) => {
+      if (i >= mineBlocks.length) return whole;
+      const mine = mineBlocks[i++];
+      if (inner !== mine) touched = true;
+      return `%%protect%%${mine}%%/protect%%`;
+    });
+    if (touched) this.log("a protected section was preserved against an external edit");
+    return out;
+  }
+
   private async onDiskChange(af: TAbstractFile) {
     if (!(af instanceof TFile) || af.extension !== "md") return;
     if (af.stat.size > this.maxFileBytes()) return;
@@ -601,7 +654,26 @@ export default class LiveCoEditPlugin extends Plugin {
       const pend = this.pending.get(af.path);
       if (pend && editor === null) {
         pend.theirs = disk;
+        void this.saveSettings();
         return;
+      }
+      // Approval mode applies to CLOSED files too: an external edit to a note
+      // that is not open must still become a reviewable proposal, or it would
+      // slip in silently. The last content we saw for the file is the base.
+      const prev = this.shadows.get(af.path);
+      if (
+        mode === "approve" &&
+        editor === null &&
+        prev !== undefined &&
+        prev !== disk
+      ) {
+        const who = await this.collaboratorName();
+        const guarded = this.applyProtectedRegions(prev, disk);
+        this.pending.set(af.path, { theirs: guarded, base: prev, collaborator: who });
+        void this.saveSettings();
+        this.announcePending(af.path, who);
+        this.log(`${who} proposed an edit to ${af.path} (file closed)`);
+        return; // shadow stays at the base until the user decides
       }
       this.shadows.set(af.path, disk);
       return;
@@ -615,9 +687,10 @@ export default class LiveCoEditPlugin extends Plugin {
 
     const base = this.shadows.get(af.path) ?? buffer;
     const who = await this.collaboratorName();
+    const guarded = this.applyProtectedRegions(buffer, disk);
 
     if (mode === "approve") {
-      this.pending.set(af.path, { theirs: disk, base, collaborator: who });
+      this.pending.set(af.path, { theirs: guarded, base, collaborator: who });
       void this.saveSettings();
       this.announcePending(af.path, who);
       this.refreshInlineProposals(af.path);
@@ -627,7 +700,7 @@ export default class LiveCoEditPlugin extends Plugin {
 
     // Automatic mode: snapshot, merge, mark, audit.
     await this.snapshots.save(af.path, buffer);
-    const { merged, conflicts } = merge3(base, buffer, disk);
+    const { merged, conflicts } = merge3(base, buffer, guarded);
     this.applyMinimalEdit(editor, merged);
     this.markExternalChanges(editor, buffer, merged, this.slotFor(who));
     this.shadows.set(af.path, merged);
@@ -1077,7 +1150,10 @@ export default class LiveCoEditPlugin extends Plugin {
     if (!editor || !view) return;
 
     const data = this.settings.inlineProposals ? this.getReviewData(path) : null;
-    if (!data) {
+    // Only decorate when the editor really shows the review buffer; after a
+    // restart the editor may hold the proposed text itself, and offsets from
+    // the base would land in the wrong places.
+    if (!data || editor.getValue() !== data.buffer) {
       view.dispatch({ effects: clearInlineProposals.of(null) });
       return;
     }
