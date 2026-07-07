@@ -1,4 +1,4 @@
-# Live Co-Edit
+# AI Co-Editor
 
 [![Downloads](https://img.shields.io/github/downloads/kebl3541/Obsidian-Live-CoEdit/total?style=flat&logo=github&label=Downloads&color=success)](https://github.com/kebl3541/Obsidian-Live-CoEdit/releases)
 [![GitHub stars](https://img.shields.io/github/stars/kebl3541/Obsidian-Live-CoEdit?style=flat&logo=github&label=Stars)](https://github.com/kebl3541/Obsidian-Live-CoEdit/stargazers)
@@ -14,9 +14,9 @@ continued development, please use the buttons below:</p>
 </p>
 
 
-Co-edit the **same open note simultaneously** with an external collaborator —
-an AI assistant (Claude Code, etc.), a script, or another editor — without
-anyone's words getting lost.
+Co-edit the **same open note simultaneously with an AI** (Claude Code and other
+file-editing assistants) — it proposes, you review as track changes, and
+nobody's words get lost. Works with scripts and other external editors too.
 
 ## The problem it solves
 
@@ -62,7 +62,7 @@ The status bar shows the last merge (`Co-edit: merged external edit at …`).
 1. `npm install && npm run build`
 2. Copy `main.js` and `manifest.json` into
    `<YourVault>/.obsidian/plugins/live-coedit/`
-3. Enable **Live Co-Edit** under Settings → Community plugins.
+3. Enable **AI Co-Editor** under Settings → Community plugins.
 
 ## Support
 

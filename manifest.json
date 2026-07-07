@@ -1,9 +1,9 @@
 {
   "id": "live-coedit",
-  "name": "Live Co-Edit",
-  "version": "2.5.2",
+  "name": "AI Co-Editor",
+  "version": "2.5.3",
   "minAppVersion": "1.4.0",
-  "description": "Co-edit open notes with external tools (AI assistants, scripts, other editors): changes on disk merge live into your editor without losing your typing.",
+  "description": "Co-edit notes live with an AI collaborator: it proposes edits, you review them as track changes and approve, reject, or pick per change. Includes chat, comments, per-word attribution, and snapshots.",
   "author": "kebl3541",
   "authorUrl": "https://github.com/kebl3541",
   "fundingUrl": {
