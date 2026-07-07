@@ -448,6 +448,8 @@ export default class LiveCoEditPlugin extends Plugin {
           }
         }
         void this.saveSettings();
+        const active = this.app.workspace.getActiveFile();
+        if (active) this.refreshInlineProposals(active.path);
       })();
       const f = this.app.workspace.getActiveFile();
       if (f) this.restoreHighlights(f);
@@ -1231,12 +1233,26 @@ export default class LiveCoEditPlugin extends Plugin {
     if (!editor || !view) return;
 
     const data = this.settings.inlineProposals ? this.getReviewData(path) : null;
-    // Only decorate when the editor really shows the review buffer; after a
-    // restart the editor may hold the proposed text itself, and offsets from
-    // the base would land in the wrong places.
-    if (!data || editor.getValue() !== data.buffer) {
+    if (!data) {
       view.dispatch({ effects: clearInlineProposals.of(null) });
       return;
+    }
+    // If the editor currently shows the proposed text itself (it reached disk
+    // while the note was closed), swap the visible content back to the user's
+    // version so the proposal can render as reviewable ghosts right here.
+    if (editor.getValue() !== data.buffer) {
+      const pend = this.pending.get(path);
+      if (
+        pend &&
+        editor.getValue() === pend.theirs &&
+        pend.base !== pend.theirs
+      ) {
+        this.applyMinimalEdit(editor, pend.base);
+        this.shadows.set(path, pend.base);
+      } else {
+        view.dispatch({ effects: clearInlineProposals.of(null) });
+        return;
+      }
     }
 
     const dels: InlineDel[] = [];
