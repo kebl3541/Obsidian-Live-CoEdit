@@ -328,11 +328,11 @@ export class CoEditPanelView extends ItemView {
         });
         open.addEventListener("click", (e) => {
           e.stopPropagation();
-          void this.app.workspace.openLinkText(
-            this.plugin.settings.chatPath,
-            "",
-            true
-          );
+          const arch = this.plugin.chatArchivePath();
+          const target = this.app.vault.getAbstractFileByPath(arch)
+            ? arch
+            : this.plugin.settings.chatPath;
+          void this.app.workspace.openLinkText(target, "", true);
         });
         const clear = head.createEl("button", {
           text: "Clear",

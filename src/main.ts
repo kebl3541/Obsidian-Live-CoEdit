@@ -71,6 +71,8 @@ interface LiveCoEditSettings {
   // Largest file (in KB) the merge engine will handle; bigger files fall
   // back to Obsidian's default behavior.
   maxFileKB: number;
+  // Start each session with an empty chat; prior messages move to an archive note.
+  clearChatOnStartup: boolean;
   // Render pending proposals inside the note as track changes.
   inlineProposals: boolean;
   // Keep collaborator highlights across restarts. Off by default: closing
@@ -97,6 +99,7 @@ const DEFAULT_SETTINGS: LiveCoEditSettings = {
   maxFileKB: DEFAULT_MAX_FILE_KB,
   rememberHighlights: false,
   inlineProposals: true,
+  clearChatOnStartup: true,
 };
 
 export interface ChatMessage {
@@ -388,6 +391,7 @@ export default class LiveCoEditPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("layout-change", captureAllOpen));
 
     this.app.workspace.onLayoutReady(() => {
+      void this.archiveChatIfNeeded();
       this.addViewActions();
       captureAllOpen();
       for (const [path, pend] of this.pending) {
@@ -917,6 +921,35 @@ export default class LiveCoEditPlugin extends Plugin {
       }
     }
     return out.slice(-12);
+  }
+
+  chatArchivePath(): string {
+    return this.settings.chatPath.replace(/\.md$/, " archive.md");
+  }
+
+  // On startup, move last session's messages into the archive so the panel
+  // opens clean. History stays one click away.
+  private async archiveChatIfNeeded() {
+    if (!this.settings.clearChatOnStartup) return;
+    const f = this.app.vault.getAbstractFileByPath(this.settings.chatPath);
+    if (!(f instanceof TFile)) return;
+    const content = await this.app.vault.cachedRead(f);
+    const lines = content.split("\n").filter((l) => /^- \*\*/.test(l));
+    if (lines.length === 0) return;
+
+    const archPath = this.chatArchivePath();
+    const stamp = new Date().toLocaleString();
+    const chunk = `\n## Session ended ${stamp}\n\n${lines.join("\n")}\n`;
+    const arch = this.app.vault.getAbstractFileByPath(archPath);
+    this.selfWrites.add(archPath);
+    if (arch instanceof TFile) {
+      await this.app.vault.process(arch, (d) => d + chunk);
+    } else {
+      await this.app.vault.create(archPath, `# Co-edit chat archive\n${chunk}`);
+    }
+    this.selfWrites.add(this.settings.chatPath);
+    await this.app.vault.modify(f, "# Co-edit chat\n\n");
+    this.refreshPanel();
   }
 
   async clearChat() {
@@ -1976,6 +2009,18 @@ class LiveCoEditSettingTab extends PluginSettingTab {
             this.plugin.settings.maxFileKB = v;
             await this.plugin.saveSettings();
           })
+      );
+
+    new Setting(containerEl)
+      .setName("Start each session with a clear chat")
+      .setDesc(
+        "On launch, last session's messages move to the chat archive note and the panel starts empty. The History button opens the archive."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.clearChatOnStartup).onChange(async (v) => {
+          this.plugin.settings.clearChatOnStartup = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)
