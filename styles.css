@@ -1,1 +1,37 @@
-/* Live Co-Edit uses the native status bar; no custom styles needed. */
+/* Review dialog for pending external edits. */
+.live-coedit-diff {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 8px;
+  margin-bottom: 1em;
+  white-space: pre-wrap;
+}
+
+.live-coedit-line {
+  padding: 0 4px;
+}
+
+.live-coedit-add {
+  background-color: rgba(var(--color-green-rgb), 0.15);
+}
+
+.live-coedit-del {
+  background-color: rgba(var(--color-red-rgb), 0.15);
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.live-coedit-sep {
+  border-top: 1px dashed var(--background-modifier-border);
+  margin: 6px 0;
+}
+
+.live-coedit-buttons {
+  display: flex;
+  gap: 0.5em;
+  justify-content: flex-end;
+}

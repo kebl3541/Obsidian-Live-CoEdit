@@ -12,7 +12,7 @@ export interface MergeResult {
 }
 
 // A hunk replaces base lines [baseStart, baseEnd) with `lines`.
-interface Hunk {
+export interface Hunk {
   baseStart: number;
   baseEnd: number;
   lines: string[];
