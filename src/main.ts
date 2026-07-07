@@ -55,6 +55,7 @@ interface LiveCoEditSettings {
   userName: string;
   collaborators: Collaborator[];
   chatPath: string;
+  showRestorePoints: boolean;
 }
 
 const DEFAULT_SETTINGS: LiveCoEditSettings = {
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS: LiveCoEditSettings = {
   userName: "me",
   collaborators: [],
   chatPath: "Co-edit chat.md",
+  showRestorePoints: false,
 };
 
 export interface ChatMessage {
@@ -1123,6 +1125,18 @@ class LiveCoEditSettingTab extends PluginSettingTab {
             this.plugin.settings.auditLogPath = v.trim() || "Co-edit log.md";
             await this.plugin.saveSettings();
           })
+      );
+
+    new Setting(containerEl)
+      .setName("Show restore points in the panel")
+      .setDesc(
+        "Snapshots are always taken before external edits; this only controls whether they appear in the co-edit panel. They stay available via the 'Restore snapshot' command."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.showRestorePoints).onChange(async (v) => {
+          this.plugin.settings.showRestorePoints = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)

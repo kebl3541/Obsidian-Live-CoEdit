@@ -74,7 +74,10 @@ export class CoEditPanelView extends ItemView {
     const pendingPaths = this.plugin.pendingPaths();
     const marks = file ? this.plugin.marksInFile(file.path) : [];
     const comments = file ? this.plugin.commentsInFile(file.path) : [];
-    const snaps = file ? await this.plugin.snapshotList(file.path) : [];
+    const snaps =
+      file && this.plugin.settings.showRestorePoints
+        ? await this.plugin.snapshotList(file.path)
+        : [];
     const msgs = await this.plugin.chatMessages();
     if (gen !== this.refreshGen) return; // a newer refresh superseded this one
 
