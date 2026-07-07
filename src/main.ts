@@ -60,6 +60,9 @@ interface LiveCoEditSettings {
   // Where the floating "Ask collaborator" button may appear. In editing mode
   // the right-click menu covers the feature, so "reading" is the default.
   askButtonMode: "off" | "reading" | "always";
+  // Which collaborator chat messages and requests are addressed to.
+  // "everyone" broadcasts; a name targets that agent only.
+  activeCollaborator: string;
 }
 
 const DEFAULT_SETTINGS: LiveCoEditSettings = {
@@ -74,12 +77,14 @@ const DEFAULT_SETTINGS: LiveCoEditSettings = {
   showRestorePoints: false,
   collapsedSections: ["Activity"],
   askButtonMode: "reading",
+  activeCollaborator: "everyone",
 };
 
 export interface ChatMessage {
   name: string;
   time: string;
   text: string;
+  target?: string;
 }
 
 interface PendingEdit {
@@ -729,7 +734,11 @@ export default class LiveCoEditPlugin extends Plugin {
     const out: ChatMessage[] = [];
     for (const line of content.split("\n")) {
       const m = line.match(/^- \*\*(.+?)\*\* \((.+?)\): (.*)$/);
-      if (m) out.push({ name: m[1], time: m[2], text: m[3] });
+      if (m) {
+        // "me → claude" means the message is addressed to one collaborator.
+        const [name, target] = m[1].split(" → ");
+        out.push({ name, target, time: m[2], text: m[3] });
+      }
     }
     return out.slice(-12);
   }
@@ -744,6 +753,27 @@ export default class LiveCoEditPlugin extends Plugin {
     this.refreshPanel();
   }
 
+  // Manually register a collaborator (before its bridge exists) so it can be
+  // targeted from the switcher.
+  addCollaborator(name: string) {
+    const clean = name.trim();
+    if (!clean || clean === "everyone") return;
+    this.slotFor(clean);
+    this.refreshPanel();
+  }
+
+  // Switch which collaborator is being addressed; also signalled on disk so
+  // bridge processes know whether they are the intended recipient.
+  async setActiveCollaborator(name: string) {
+    this.settings.activeCollaborator = name;
+    await this.saveSettings();
+    await this.app.vault.adapter.write(
+      `${this.app.vault.configDir}/live-coedit-target.json`,
+      JSON.stringify({ target: name, ts: Date.now() })
+    );
+    this.refreshPanel();
+  }
+
   async sendChat(text: string) {
     const clean = text.trim();
     if (!clean) return;
@@ -751,7 +781,12 @@ export default class LiveCoEditPlugin extends Plugin {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const entry = `- **${this.settings.userName}** (${time}): ${clean}\n`;
+    const target = this.settings.activeCollaborator;
+    const author =
+      target && target !== "everyone"
+        ? `${this.settings.userName} → ${target}`
+        : this.settings.userName;
+    const entry = `- **${author}** (${time}): ${clean}\n`;
     const path = this.settings.chatPath;
     const existing = this.app.vault.getAbstractFileByPath(path);
     this.selfWrites.add(path);
@@ -1557,10 +1592,21 @@ class LiveCoEditSettingTab extends PluginSettingTab {
       .setName("Collaborators")
       .setDesc(
         this.plugin.settings.collaborators.length === 0
-          ? "None seen yet. Collaborators identify themselves via .obsidian/live-coedit-collaborator.json and get a color automatically."
+          ? "None seen yet. Collaborators identify themselves via .obsidian/live-coedit-collaborator.json and get a color automatically. You can also add one here in advance."
           : this.plugin.settings.collaborators
               .map((c) => `${c.name} (color ${c.slot})`)
               .join(", ")
-      );
+      )
+      .addText((t) => {
+        t.setPlaceholder("Add a name, press Enter");
+        t.inputEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.plugin.addCollaborator(t.getValue());
+            t.setValue("");
+            this.display();
+          }
+        });
+      });
   }
 }

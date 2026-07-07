@@ -283,6 +283,28 @@ export class CoEditPanelView extends ItemView {
       "Chat",
       msgs.length,
       (head) => {
+        // Collaborator switcher: choose who messages are addressed to.
+        const select = head.createEl("select", {
+          cls: "dropdown live-coedit-target",
+          attr: { "aria-label": "Who are you talking to?" },
+        });
+        const options = [
+          "everyone",
+          ...this.plugin.settings.collaborators.map((c) => c.name),
+        ];
+        for (const name of options) {
+          const opt = select.createEl("option", {
+            text: name === "everyone" ? "to: everyone" : `to: ${name}`,
+          });
+          opt.value = name;
+        }
+        select.value = this.plugin.settings.activeCollaborator;
+        select.addEventListener("pointerdown", (e) => e.stopPropagation());
+        select.addEventListener("click", (e) => e.stopPropagation());
+        select.addEventListener("change", () => {
+          void this.plugin.setActiveCollaborator(select.value);
+        });
+
         const clear = head.createEl("button", {
           text: "Clear",
           cls: "live-coedit-headbtn",
@@ -298,7 +320,10 @@ export class CoEditPanelView extends ItemView {
     const log = s.createDiv({ cls: "live-coedit-chatlog" });
     for (const m of msgs) {
       const row = log.createDiv({ cls: "live-coedit-chatmsg" });
-      row.createSpan({ cls: "live-coedit-chip", text: m.name });
+      row.createSpan({
+        cls: "live-coedit-chip",
+        text: m.target ? `${m.name} → ${m.target}` : m.name,
+      });
       row.createSpan({ cls: "live-coedit-lineno", text: ` ${m.time}` });
       row.createDiv({ cls: "live-coedit-chattext", text: m.text });
     }

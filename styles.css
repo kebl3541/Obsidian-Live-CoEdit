@@ -402,3 +402,10 @@
 .live-coedit-skip-inline {
   color: var(--text-faint);
 }
+
+/* Collaborator switcher in the chat header. */
+.live-coedit-target {
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  max-width: 130px;
+}
