@@ -150,7 +150,17 @@ export class CoEditPanelView extends ItemView {
         }
         // When the ghosts are on the page, the page is the review surface;
         // the panel keeps only the bulk buttons.
-        if (!inline) this.renderPendingPreview(row, path);
+        if (!inline) {
+          const inText = row.createEl("button", {
+            text: "Review in text",
+            cls: "live-coedit-smallbtn",
+            attr: { "aria-label": "Switch this note to editing view and review the changes in place" },
+          });
+          inText.addEventListener("click", () => {
+            void this.plugin.openInSource(path).then(() => this.refresh());
+          });
+          this.renderPendingPreview(row, path);
+        }
         const review = row.createEl("button", { text: "Review" });
         review.addClass("mod-cta");
         review.addEventListener("click", () => this.plugin.openReview(path));

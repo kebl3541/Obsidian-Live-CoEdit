@@ -1634,6 +1634,28 @@ export default class LiveCoEditPlugin extends Plugin {
     return this.snapshots.list(path);
   }
 
+  // Flip the note's view to editing mode so in-text review can render.
+  async openInSource(path: string) {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === path) {
+        const vs = leaf.getViewState();
+        (vs.state as { mode?: string }).mode = "source";
+        await leaf.setViewState(vs);
+        await this.app.workspace.revealLeaf(leaf);
+        window.setTimeout(() => this.refreshInlineProposals(path), 250);
+        return;
+      }
+    }
+    // Not open anywhere: open it in a new leaf in editing mode.
+    const f = this.app.vault.getAbstractFileByPath(path);
+    if (f instanceof TFile) {
+      const leaf = this.app.workspace.getLeaf(true);
+      await leaf.openFile(f);
+      window.setTimeout(() => this.refreshInlineProposals(path), 400);
+    }
+  }
+
   openHistory(path: string) {
     new HistoryModal(this.app, this, path).open();
   }
