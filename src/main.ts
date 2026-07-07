@@ -1359,30 +1359,49 @@ export default class LiveCoEditPlugin extends Plugin {
       const mineText = seg.mine.join("\n");
       const theirsText = seg.theirs.join("\n");
       const tokens = diffWords(mineText, theirsText);
-      const addRuns = tokens.filter((t) => t.kind === "add").length;
-      const changed = tokens
-        .filter((t) => t.kind !== "same")
-        .reduce((n, t) => n + t.text.length, 0);
-      const ratio = changed / Math.max(1, mineText.length + theirsText.length);
-
-      if (addRuns > 2 || ratio > 0.4) {
-        // Heavy rewrite: strike the whole old stretch once, and show the
-        // complete new text once at its end, instead of interleaving ghosts
-        // after every changed word.
-        if (mineText.length > 0) {
-          dels.push({
-            from: bufferOffset,
-            to: bufferOffset + mineText.length,
-            proposalIndex: idx,
-          });
+      // Count change islands (maximal runs of changed tokens) and locate the
+      // changed span in both versions.
+      let mineOff = 0;
+      let theirsOff = 0;
+      let islands = 0;
+      let inIsland = false;
+      let firstMine = -1;
+      let lastMineEnd = -1;
+      let firstTheirs = -1;
+      let lastTheirsEnd = -1;
+      for (const tok of tokens) {
+        const isChange = tok.kind !== "same";
+        if (isChange && !inIsland) islands++;
+        inIsland = isChange;
+        if (isChange) {
+          if (firstMine < 0) {
+            firstMine = mineOff;
+            firstTheirs = theirsOff;
+          }
+          lastMineEnd = tok.kind === "add" ? mineOff : mineOff + tok.text.length;
+          lastTheirsEnd = tok.kind === "del" ? theirsOff : theirsOff + tok.text.length;
         }
+        if (tok.kind !== "add") mineOff += tok.text.length;
+        if (tok.kind !== "del") theirsOff += tok.text.length;
+      }
+
+      if (islands >= 3 && firstMine >= 0) {
+        // Scattered rewrite: strike the changed span once and show the new
+        // version of that span once, at its end. No per-word confetti.
+        const from = bufferOffset + firstMine;
+        const to = bufferOffset + Math.max(firstMine, lastMineEnd);
+        if (to > from) dels.push({ from, to, proposalIndex: idx });
+        const ghostText = theirsText.slice(
+          firstTheirs,
+          Math.max(firstTheirs, lastTheirsEnd)
+        );
         adds.push({
-          pos: bufferOffset + mineText.length,
-          text: theirsText.length > 0 ? " " + theirsText : "",
+          pos: to,
+          text: ghostText.length > 0 ? " " + ghostText : "",
           proposalIndex: idx,
         });
       } else {
-        // Light edit: word-level marks, precise and quiet.
+        // One or two contiguous changes: word-level marks, precise and quiet.
         let off = bufferOffset;
         let hasAdd = false;
         let lastDelEnd = bufferOffset;
@@ -1398,7 +1417,6 @@ export default class LiveCoEditPlugin extends Plugin {
             hasAdd = true;
           }
         }
-        // Deletion-only proposals still need their accept and reject buttons.
         if (!hasAdd) {
           adds.push({ pos: lastDelEnd, text: "", proposalIndex: idx });
         }
