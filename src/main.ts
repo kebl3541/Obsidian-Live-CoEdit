@@ -213,6 +213,21 @@ export default class LiveCoEditPlugin extends Plugin {
           // the hash check would wrongly discard stored highlights.
           window.setTimeout(() => {
             this.restoreHighlights(f);
+            const pend = this.pending.get(f.path);
+            const ed = this.findEditorFor(f.path);
+            if (
+              pend &&
+              ed &&
+              ed.getValue() === pend.theirs &&
+              pend.base !== pend.theirs
+            ) {
+              // The proposal text reached disk while the file was closed;
+              // show the user THEIR version and render the proposal as
+              // reviewable ghosts instead.
+              this.applyMinimalEdit(ed, pend.base);
+              this.shadows.set(f.path, pend.base);
+              this.announcePending(f.path, pend.collaborator);
+            }
             this.refreshInlineProposals(f.path);
           }, 150);
         }
@@ -412,6 +427,24 @@ export default class LiveCoEditPlugin extends Plugin {
             this.pending.set(path, { theirs: guarded, base: prev, collaborator: who });
             this.announcePending(path, who);
             this.log(`${who} edited ${path} while Obsidian was closed`);
+          }
+        }
+        // Bootstrap baselines for recent notes so that external edits to
+        // never-opened files still get proposals instead of slipping in.
+        const recentFiles = this.app.vault
+          .getMarkdownFiles()
+          .filter(
+            (f) =>
+              f.stat.size <= 200_000 &&
+              f.path !== this.settings.chatPath &&
+              f.path !== this.settings.auditLogPath &&
+              f.path !== this.chatArchivePath()
+          )
+          .sort((a, b) => b.stat.mtime - a.stat.mtime)
+          .slice(0, 100);
+        for (const f of recentFiles) {
+          if (!this.shadows.has(f.path)) {
+            this.shadows.set(f.path, await this.app.vault.cachedRead(f));
           }
         }
         void this.saveSettings();
@@ -678,6 +711,13 @@ export default class LiveCoEditPlugin extends Plugin {
         this.announcePending(af.path, who);
         this.log(`${who} proposed an edit to ${af.path} (file closed)`);
         return; // shadow stays at the base until the user decides
+      }
+      if (mode === "approve" && editor === null && prev === undefined) {
+        const who = await this.collaboratorName();
+        new Notice(
+          `AI Co-Editor: ${who} edited "${af.path}" before it had a baseline; the edit applied without review.`
+        );
+        this.log(`${who} edited ${af.path} without review (no baseline yet)`);
       }
       this.shadows.set(af.path, disk);
       return;
