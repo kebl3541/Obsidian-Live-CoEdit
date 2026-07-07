@@ -241,7 +241,7 @@ export default class LiveCoEditPlugin extends Plugin {
     });
     this.addCommand({
       id: "ask-edit-selection",
-      name: "Ask collaborator to edit selection",
+      name: "Ask your AI collaborator to edit selection",
       editorCallback: (editor, view) => {
         if (view instanceof MarkdownView) this.askAboutSelection(editor, view);
       },
@@ -254,7 +254,7 @@ export default class LiveCoEditPlugin extends Plugin {
           return;
         menu.addItem((item) =>
           item
-            .setTitle("Ask collaborator to edit this")
+            .setTitle("Ask your AI collaborator to edit this")
             .setIcon("users")
             .onClick(() => this.askAboutSelection(editor, view))
         );
@@ -916,7 +916,7 @@ export default class LiveCoEditPlugin extends Plugin {
     if (btn) return btn;
     btn = doc.createElement("button");
     btn.className = "live-coedit-askbtn";
-    btn.setText("Ask collaborator");
+    btn.setText("Ask AI");
     // pointerdown + preventDefault keeps the selection alive.
     btn.addEventListener("pointerdown", (evt) => {
       evt.preventDefault();
@@ -1437,12 +1437,13 @@ class AskModal extends Modal {
 
   constructor(app: App, selection: string, onDone: (instruction: string) => void) {
     super(app);
-    this.selection = selection;
+    // Defensive: whatever arrives, the preview shows text, never an object.
+    this.selection = typeof selection === "string" ? selection : String(selection ?? "");
     this.onDone = onDone;
   }
 
   onOpen() {
-    this.titleEl.setText("Ask your collaborator");
+    this.titleEl.setText("Ask your AI collaborator");
     const preview = this.contentEl.createDiv({ cls: "live-coedit-ask-preview" });
     preview.setText(
       this.selection.length > 220

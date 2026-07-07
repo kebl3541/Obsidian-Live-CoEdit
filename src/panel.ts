@@ -344,7 +344,7 @@ export class CoEditPanelView extends ItemView {
 
     const composer = s.createDiv({ cls: "live-coedit-composer" });
     const input = composer.createEl("textarea", {
-      placeholder: "Message your collaborator… (Enter sends, Shift+Enter = new line)",
+      placeholder: "Message your AI collaborator… (Enter sends, Shift+Enter = new line)",
     });
     input.rows = 2;
     input.value = this.plugin.chatDraft;
